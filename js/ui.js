@@ -3,184 +3,224 @@
 
 
 var data_colors = d3.scale.category10();
+//functions
+var updateUIForYearNum, playFunction, resetFunction, pauseFunction,nextFunction,previousFunction;
 
+var subtypes = [];
+var currentSubtypeSet = null;
+var subtypeChangeCounter = 0;
+var currentYearIndex =-1;
+function GenerateGraph(dialogJQ,svg,width,height,countryCode,dataset_index) {
+	// Set the ranges
+    var x = d3.scale.linear().range([0, width]);//.format("04d");
+	var y = d3.scale.linear().range([height, 0]);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function GenerateGraph(svg,width,height,countryCode){
-    //http://bl.ocks.org/d3noob/38744a17f9c0141bcd04
-var include_avg = 1; //should be zero
-  d3.select("#continent_checkbox").on("change",function(){
-                    if(this.checked)
-                    {
-						include_avg =1;   //How to bind ???
-						
-					} });
-// Set the ranges
-var x = d3.scale.linear().range([0, width]);//.format("04d");
-var y = d3.scale.linear().range([height, 0]);
-
-// Define the axes
-var xAxis = d3.svg.axis().scale(x)
-    .orient("bottom").ticks(10).tickFormat(d3.format("d"));
+	// Define the axes
+	var xAxis = d3.svg.axis().scale(x)
+    .orient("bottom").ticks(10).tickFormat(d3.format("4d"));
     
-var yAxis = d3.svg.axis().scale(y)
-    .orient("left").ticks(8);
+	var yAxis = d3.svg.axis().scale(y)
+    	.orient("left")
+        .ticks(6)
+        .tickFormat(d3.format(".2s"));
+        //.tickFormat(d3.format(".2f"));
 
-// Define the line
-var valueline = d3.svg.line()
-    .x(function(d) { return x((d.year)); })
-    .y(function(d) { return y((d.value));})
-    .interpolate("linear");
+	// Define the line
+	var valueline = d3.svg.line()
+    	.x(function(d) { return x((d.year)); })
+	    .y(function(d) { return y((d.value));})
+    	.interpolate("linear");
 
-  var country_plotdata  = [];
-  var continent_plotdata  = [];
-  var continent = list_Continent[countryCode];
-  for (var yearindex = 0;yearindex<maxYearIndex() +1 ;yearindex++)
-  {
-    var datapoint = {value:-1,year:1888,valid:0}; //why we have to do that ?
-    datapoint.value = dataset[selected].where(function(row){return (row.country == countryCode) 
-                                                                && (row.yearindex == yearindex);})
-                             .select(function(row){return row.value});
+	var country_plotdata  = [];
+	var continent_plotdata  = [];
+	var continent = list_Continent[countryCode];
+	var datapoint;
+	for (var yearindex = 0;yearindex<= years_by_index[dataset_index].length;yearindex++)
+	{
+    	datapoint =  {value:-1,year:1888};
+   		datapoint.value = dataset[dataset_index].where(function(row){return (row.country == countryCode) && (row.yearindex == yearindex);})
+			                               .select(function(row){return row.value});
     
-    datapoint.year = yearForYearIndex(yearindex).year;
-    if(datapoint.value.length == 0)
-    {
-        datapoint.valid=0;
-        datapoint.value=-1;
-    }
-    else
-    {
-        datapoint.valid=1;
-        datapoint.value=datapoint.value[0];
-        country_plotdata.push(datapoint);
-    }
-      datapoint = {value:-1,year:1888,valid:0}; //why we have to do that ?
-    datapoint.year = yearForYearIndex(yearindex).year;
+	    
 
-    datapoint.value = dataset_Continent[selected].where(function(row){return (row.continent == continent) 
-                                                                && (row.yearindex == yearindex);})
-                             .select(function(row){return row.value});
+	    if(datapoint.value.length != 0)
+	    {
+       		datapoint.value=datapoint.value[0];
+	        datapoint.year = years_by_index[dataset_index][yearindex].year;
+	        country_plotdata.push(datapoint);
+	    }
+
+	    datapoint =  {value:-1,year:1888};
+	    datapoint.value = dataset_Continent[dataset_index].where(function(row){return (row.continent == continent) && (row.yearindex == yearindex) &&(row.valid==1);})
+       							                     .select(function(row){return row.value});
     
 
-    if(datapoint.value.length == 0)
-    {
-        datapoint.valid=0;
-        datapoint.value=-1;
-    }
-    else
-    {
-        datapoint.valid=1;
-        datapoint.value=datapoint.value[0];
-        continent_plotdata.push(datapoint);
-    } 
-       
-       
     
-  }
+	    if(datapoint.value.length != 0)
+	    {
+       		datapoint.value=datapoint.value[0];
+	        datapoint.year = years_by_index[dataset_index][yearindex].year;
+	        continent_plotdata.push(datapoint);
+   		} 
+	}
 
     // Scale the range of the data
-    x.domain([ d3.min(continent_plotdata,function(d) { return d.year; }),d3.max(continent_plotdata,function(d) { return d.year; })]);
-    if(include_avg)
-	{
-	y.domain([ d3.min([d3.min(country_plotdata,function(d) { return d.value;}),d3.min(continent_plotdata,function(d) { return d.value;})]),
-	           d3.max([d3.max(country_plotdata,function(d) { return d.value;}),d3.max(continent_plotdata,function(d) { return d.value;})])]);
-	}
-	else
-	{
-		y.domain([ d3.min(country_plotdata,function(d) { return d.value;}) -0.5,d3.max(country_plotdata,function(d) { return d.value;})+0.5]);
-	}
-	
-	
-	
-	var tooltip = d3.select(".dot");
+    maxYear = -1*Number.MAX_VALUE;
+    minYear =    Number.MAX_VALUE;
+    for(var i=0;i<number_of_loaded_datasets;i++)
+    {
+        if(years_by_index[i][0].year<minYear)
+        {
+            minYear = years_by_index[i][0].year;
+        }
    
-    
+        if(years_by_index[i].slice(-1)[0].year>maxYear)
+        {
+            maxYear = years_by_index[i].slice(-1)[0].year;
+        }
+    }
 
-   // tooltip.text("my tooltip text");
+	
+    x.domain([ minYear -1,maxYear+1]); 
+
+    var country_ymin   =  d3.min(country_plotdata,function(d) {return d.value;});
+    var country_ymax   =  d3.max(country_plotdata,function(d) {return d.value;});
+    var continent_ymin =  d3.min([country_ymin,d3.min(continent_plotdata,function(d) { return d.value;})]);
+    var continent_ymax =  d3.max([country_ymax,d3.max(continent_plotdata,function(d) { return d.value;})]);
+    y.domain([ continent_ymin - 0.5,continent_ymax +0.5]);
+   
+dialogJQ.find("#continent_checkbox").button();
+dialogJQ.find("#continent_checkbox").on("change", function() {
+	if(this.checked) {	
+    	y.domain([ continent_ymin - 0.5,continent_ymax +0.5]);
+        svg.selectAll(".y.axis").transition().duration(300).call(yAxis);
+        svg.selectAll(".dot").transition().duration(300).attr("cy", function(d) { return y(d.value); })
+		svg.selectAll(".line").transition().duration(300).attr("d", valueline(country_plotdata))
+		svg.selectAll(".dot2").transition().duration(300).attr("r", 3.5);
+		svg.selectAll(".line2").transition().duration(300).attr("stroke-width", 2);
+
+	} else {
+	
+    	y.domain([country_ymin -0.5,country_ymax +0.5]);
+        svg.selectAll(".y.axis").transition().duration(300).call(yAxis);
+        svg.selectAll(".dot").transition().duration(300).attr("cy", function(d) { return y(d.value); })
+		svg.selectAll(".line").transition().duration(300).attr("d", valueline(country_plotdata))
+		svg.selectAll(".dot2").transition().duration(300).attr("r", 0);
+		svg.selectAll(".line2").transition().duration(300).attr("stroke-width", 0);
+	}
+});
+	
     // Add the paths.
     svg.append("path")
        .attr("d", valueline(country_plotdata))
-       .attr("stroke",  data_colors.range()[selected])
+	   .attr("class", "line")
+       .attr("stroke",  data_colors.range()[dataset_index])
        .attr("stroke-width", 2)
        .attr("fill", "none");
-       if(include_avg){
+      
+
     svg.append("path")
        .attr("d", valueline(continent_plotdata))
-       .attr("stroke",  data_colors.range()[selected])
+	   .attr("class", "line2")
+       .attr("stroke",  data_colors.range()[dataset_index])
        .attr("stroke-width", 2)
        .attr("fill", "none")
        .style("stroke-dasharray", ("3, 3"));   
-	   }
+
+    
     // Add the scatterplots
     svg.selectAll("dot")
         .data(country_plotdata)
         .enter().append("circle")
+		.attr("class", "dot")
         .attr("r", 3.5)
         .attr("cx", function(d) { return x(d.year); })
         .attr("cy", function(d) { return y(d.value); })
-		.style("fill", function(d) { return data_colors(3); })
-		.on("mouseover", function(d){ 
-  tooltip.text(d.year);
-
-  console.log(d.year);
-  return tooltip.style("visibility", "visible");
-		})
-  .on("mouseout", function () {
-        return tooltip.style("visibility", "hidden");
-    });
-
-      
-              
-     
+        .on("mouseover",function(d){
+             svg.append("rect")
+                .attr("id","tooltip2")
+                .style("position", "absolute")
+                .attr("x", function() { 
+                                         if (x(d.year)<350)
+                                         {  
+                                               return x(d.year) -12
+                                         }
+                                         else{
+                                               return x(d.year) -170
+                                         }
+                                       })
+                .attr("y", y(d.value) + 10)
+                .attr("rx", 10)
+                .attr("ry", 10)
+                .attr("width", 200)
+                .attr("height", 25)
+                .style("fill","#999999")  
+         
+            svg.append("text")
+               .attr("id","tooltip")
+               .style("position", "absolute")
+                .attr("x", function() { 
+                                         if (x(d.year)<350)
+                                         {  
+                                               return x(d.year) -5
+                                         }
+                                         else{
+                                               return x(d.year) -160
+                                         }
+                                       })
+               .attr("y", y(d.value) +25)
+               .text("["+ "Value:"+ (d.value).toFixed(2)  +","+"Year:"+d.year+ "]")
+        })
+        .on("mouseout", function() {d3.select("#tooltip").remove(), d3.select("#tooltip2").remove()}) ;  
     
-     if(include_avg){
+
     svg.selectAll("dot2")
         .data(continent_plotdata)
         .enter().append("circle")
+		.attr("class", "dot2")
+		.attr("fill", "grey")
+		.attr("stroke", "grey")
         .attr("r", 3.5)
         .attr("cx", function(d) { return x(d.year); })
-        .attr("cy", function(d) { return y(d.value); });
-	 }
-/*
-    // Add the X Axis
-    svg.append("g")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + height + ")")
-        .call(xAxis);
-
-    // Add the Y Axis
-    svg.append("g")
-        .attr("class", "y axis")
-        .call(yAxis);
-*/		
-		
+        .attr("cy", function(d) { return y(d.value); })
+        .on("mouseover",function(d){
+             svg.append("rect")
+                .attr("id","tooltip2")
+                .style("position", "absolute")
+                .attr("x", function() { 
+                                         if (x(d.year)<350)
+                                         {  
+                                               return x(d.year) -12
+                                         }
+                                         else{
+                                               return x(d.year) -170
+                                         }
+                                       })
+                .attr("y", y(d.value) + 10)
+                .attr("rx", 10)
+                .attr("ry", 10)
+                .attr("width", 200)
+                .attr("height", 25)
+                .attr("font-size", 14)
+                .style("fill","#999999")  
+         
+            svg.append("text")
+               .attr("id","tooltip")
+               .style("position", "absolute")
+                .attr("x", function() { 
+                                         if (x(d.year)<350)
+                                         {  
+                                               return x(d.year) -5
+                                         }
+                                         else{
+                                               return x(d.year) -160
+                                         }
+                                       })
+               .attr("y", y(d.value) +25)
+               .text("["+ "Value:"+ (d.value).toFixed(2)  +","+"Year:"+d.year+ "]")
+        })
+        .on("mouseout", function() {d3.select("#tooltip").remove(), d3.select("#tooltip2").remove()}) ;  
+  // x-axis
 	svg.append("g")
       .attr("class", "x axis")
       .attr("transform", "translate(0," + height + ")")
@@ -191,8 +231,8 @@ var valueline = d3.svg.line()
       .attr("y", 40)
       .style("text-anchor", "middle")
 	  .style("font-weight","bold")
-	  .style("font-size","14px")
-      .text("Years");
+	  .style("font-size","12px")
+      .text("Year");
 
   // y-axis
   svg.append("g")
@@ -201,13 +241,12 @@ var valueline = d3.svg.line()
     .append("text")
       .attr("class", "label")
       .attr("transform", "rotate(-90)")
-	  .attr("y", -50)
+	  .attr("y", -60)
 	  .attr("x", -height/2)
       .attr("dy", "-.11em")
       .style("text-anchor", "middle")
-	  .style("font-weight","bold")
-	  .style("font-size","12px")
-      .text(currentSubtypeSet.prettyname);
+	  .style("font-size","10px")
+      .text(subtypes[dataset_index].prettyname);
 	  
 
 };
@@ -215,44 +254,14 @@ var valueline = d3.svg.line()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//functions
-var updateUIForYearNum, playFunction, pauseFunction;
-
-var subtypes = [];
-var currentSubtypeSet = null;
-var subtypeChangeCounter = 0;
-var currentYearIndex =0;
-
 (function(){
 	var _yearnum = null;
 	updateUIForYearNum = function(yearnum) {
 		_yearnum = yearnum;
-		currentYearIndex = yearnum;
-		$(document).trigger("flunet-update");
+		currentYearIndex = yearnum-1;
+		$(document).trigger("update");
 	};
-	$(document).on("flunet-update", function(){
+	$(document).on("update", function(){
 		var year = yearForYearNum(_yearnum);
 		$("#timelabel").text(year);
 		updateMapStylesForYear(year);
@@ -277,14 +286,61 @@ var currentYearIndex =0;
 		if (_playTimeout != null) {
 			clearTimeout(_playTimeout);
 			_playTimeout = null;
-			$("#play").button("option", {
+			
+			};
+            $("#play").button("option", {
+				label: "play",
+				icons: {
+					primary: "ui-icon-play"
+				} });
+		}
+	
+    resetFunction = function(){
+
+        if (_playTimeout != null) {
+			clearTimeout(_playTimeout);
+			_playTimeout = null;
+            $("#play").button("option", {
 				label: "play",
 				icons: {
 					primary: "ui-icon-play"
 				}
 			});
-		}
-	};
+        }     
+               updateUIForYearNum(0);
+        };
+    nextFunction = function(){
+
+        if (_playTimeout != null) {
+			clearTimeout(_playTimeout);
+			_playTimeout = null;
+            $("#play").button("option", {
+				label: "play",
+				icons: {
+					primary: "ui-icon-play"
+				}
+			});
+        }      
+                
+               updateUIForYearNum(_yearnum +1 < years_by_index[selected].length ? _yearnum+1 : 0);
+        };
+        
+    previousFunction = function(){
+
+        if (_playTimeout != null) {
+			clearTimeout(_playTimeout);
+			_playTimeout = null;
+            $("#play").button("option", {
+				label: "play",
+				icons: {
+					primary: "ui-icon-play"
+				}
+			});
+        }      
+        updateUIForYearNum(_yearnum -1 >=0? _yearnum-1 :years_by_index[selected].length);
+         
+               
+        };
 })();
 
 yellINeedToLoad();
@@ -294,6 +350,12 @@ $(function(){
 	$("#filename").change(function(e) {
 		var ext = $("input#filename").val().split(".").pop().toLowerCase();
 		var filename = $("input#filename").val().split(".")[0].split("\\").pop();
+
+        if(number_of_loaded_datasets == 10) {
+            alert('Up to 10 datasets allowed');
+			this.value = null;
+			return false;
+        }
 
 		if($.inArray(ext, ["json"]) == -1) {
 			alert('Only JSON files are accepted');
@@ -306,19 +368,19 @@ $(function(){
 			reader.onload = function(e) {
 				selected = subtypes.length;
 				var data = $.parseJSON(e.target.result);
-				console.log(dataset[selected])	;
+				
 				dataset[selected] = data.sort(function(a, b){
 					if(a.year != b.year) {
 						return a.year - b.year;
 					}
 				});
-				console.log(dataset[selected])	;			
+						
 				var firstyear = dataset[selected][0].year;
 				years_by_index[selected] = [];
 		
 				for(var i=0; i<dataset[selected].length; i++) {
 					var row = dataset[selected][i];
-					//console.log(row)
+
 			
 					row.yearnum = years_by_index[selected].length;
 					var lastyear = (years_by_index[selected].length > 0 ? years_by_index[selected][maxYearIndex()] : null);
@@ -328,7 +390,7 @@ $(function(){
 					row.yearindex = maxYearIndex();
 					row.scalefactors = {};
 					}				
-				console.log(JSON.stringify(years_by_index[selected]));
+				//console.log(JSON.stringify(years_by_index[selected]));
 				
 				subtypes.push({name: "value", prettyname: filename, color: data_colors(selected), id: selected});
 				currentSubtypeSet = subtypes[selected];
@@ -340,9 +402,9 @@ $(function(){
 				}
 				//Initialize dataset for continents
 				dataset_Continent[selected] = [];
-				for( var i=0; i<years_by_index[selected].length; i++){
+				for( var i=0; i<=maxYearIndex(); i++){
 				   for(var j=0; j<continents.length; j++){
-					   var row = dataset_Continent[selected].push({continent: continents[j], value: -1, scalefactors:-1, year: yearForYearIndex(i).year,yearindex: i, yearnum: i+1 })
+					   var row = dataset_Continent[selected].push({continent: continents[j], value: -1, scalefactors:-1, year: yearForYearIndex(i).year,yearindex: i, yearnum: i+1, valid:0 })
 					}
 				}
 				//console.log(dataset_Continent);
@@ -379,6 +441,7 @@ $(function(){
 			
 			reader.readAsText(e.target.files.item(0));
 	
+    		number_of_loaded_datasets++;
 		}
 
 		this.value = null;
@@ -388,7 +451,9 @@ $(function(){
 	$("#country").click(function() {
 		
 		  continent_selected=0;
-		  updateMapStylesForYear(yearForYearIndex(currentYearIndex).year);
+          
+          console.log(yearForYearIndex(currentYearIndex+1).year)
+		  updateMapStylesForYear(yearForYearIndex(currentYearIndex+1).year);
 		
 		  // $("#globecontainer").fadeOut(1000, function() {
 				   //setGlobeVelocity([0, 0, 0]);
@@ -398,8 +463,9 @@ $(function(){
 	$("#continent").click(function() {
 		
 		 continent_selected=1;
-		 console.log(yearForYearIndex(currentYearIndex));
-		 updateMapStylesForYear(yearForYearIndex(currentYearIndex).year);
+                  console.log(yearForYearIndex(currentYearIndex+1).year)
+		 updateMapStylesForYear(yearForYearIndex(currentYearIndex+1).year);
+
 		   //if (!($("#globec7ontainer").is(":visible"))) setGlobeAngle([0, -30, 0]);
 		  // setGlobeVelocity([0.01, 0, 0]);
 		  // $("#mapcontainer").fadeOut(1000);
@@ -444,9 +510,34 @@ $(function(){
 			pauseFunction();
 		}
     });
-	
+	$("#reset").button({
+		text: false,
+		icons: {
+			primary: "ui-icon-radio-off"
+		}
+	}).click(function() {
+        resetFunction();
+    });
+    $("#previous").button({
+		text: false,
+		icons: {
+			primary: "ui-icon-carat-1-w"
+		}
+	}).click(function() {
+        previousFunction();
+    });
+    
+    $("#next").button({
+		text: false,
+		icons: {
+			primary: "ui-icon-carat-1-e"
+		}
+	}).click(function() {
+        nextFunction();
+    });
 	// Set up toolbox buttons
 	$("#summarybox").dialog({
+		dialogClass: "summary_dialog",
 		modal: false,
 		autoOpen: true,
 		resizable: true,
@@ -454,11 +545,23 @@ $(function(){
 		show: true,
 		height: 178,
 		width: 300,
-		position: "right",
 		title: "Summary",
+        position:"right,top",
         //remove x button
         //http://stackoverflow.com/a/7920871
         open: function(event, ui) { $(".ui-dialog-titlebar-close").hide(); }
+	});
+	$(".summary_dialog").children(".ui-dialog-titlebar").append("<span id='summary_toggle' class='ui-icon ui-icon-circle-minus' style='display:inline-block;float:right;cursor:pointer;'></span>");
+	$("#summary_toggle").click(function() {
+		if($(this).hasClass("ui-icon-circle-minus")) {
+			$("#summarybox").hide();
+			$(".summary_dialog").height(32);
+			$(this).removeClass("ui-icon-circle-minus").addClass("ui-icon-circle-plus");
+		} else {
+			$("#summarybox").show();
+			$(".summary_dialog").height($("#summarybox").height() +50);
+			$(this).removeClass("ui-icon-circle-plus").addClass("ui-icon-circle-minus");
+		}
 	});
 	$("#aboutbox").dialog({
 		modal: true,
@@ -467,15 +570,12 @@ $(function(){
 		draggable: false,
 		show: true,
 		height: 600,
-		width: 800,
+		width: 855,
 		position: "center",
 		title: "About This Program"
 	});
 	$("#about").button({
-		text:false,
-		icons:{
-			primary: "ui-icon-help"
-		}
+		text:true
 	}).click(function(event,ui){
 		$("#aboutbox").dialog("open");
 	});
@@ -487,43 +587,71 @@ $(function(){
 		
 		var countryCode = d3.select(this).attr("countryCode");
 		var updateChartFunction;
-		dialogJQ = $("<div class='countryPopoutDialog' id ='graph'>" + "<input type=\"checkbox\" id=\"#continent_checkbox\"><label > Show continent average</label>	</div>");
+		dialogJQ = $("<div class='countryPopoutDialog' id='graphdialog'></div>");
 		//dialogJQ.append($("<div class='xLabel'>Years</div>"));
         //dialogJQ.append($("<div class='yLabel'>"+currentSubtypeSet.prettyname+"</div>"));
 		
+	var continent_checkbox = $("<input type='checkbox' id='continent_checkbox' checked><label for='continent_checkbox'> Show continent average</label>");
+		dialogJQ.prepend(continent_checkbox);
         //set up svg for graph
-        var margin = {top: 30, right: 20, bottom: 30, left: 70},
+        var margin = {top: 10, right: 20, bottom: 50, left: 70},
                     width = 750 - margin.left - margin.right,
-                    height = 315 - margin.top - margin.bottom;
+                    height = 250 - margin.top - margin.bottom;
       
-        var svg = d3.select(dialogJQ.get()[0])
+        //Create a svg array 
+        var svgs = new Array(number_of_loaded_datasets);
+        
+       //set up continent checkbox only once.
+        //Generate first the graph for the selected datasets.
+        svgs[0] = d3.select(dialogJQ.get()[0])
                     .append("svg")
                     .attr("width", width + margin.left + margin.right)
                     .attr("height", height + margin.top + margin.bottom)
                     .append("g")
                     .attr("transform", 
                     "translate(" + margin.left + "," + margin.top + ")");
-        GenerateGraph(svg,width,height,countryCode);
-        
+         
+        GenerateGraph(dialogJQ,svgs[0],width,height,countryCode,selected);
+        for(var j=0;j<number_of_loaded_datasets;j++)
+        {
+            if(j==selected)
+                continue;
+
+
+            svgs[j] = d3.select(dialogJQ.get()[0])
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", 
+                    "translate(" + margin.left + "," + margin.top + ")");
+            GenerateGraph(dialogJQ,svgs[j],width,height,countryCode,j);
+       } 
 /*
 		var updateChartFunction = function() {};
   
  // dialogJQ.on("dialogresize", updateChartFunction);
-		//	$(document).bind("flunet-update", updateChartFunction);
+		//	$(document).bind("update", updateChartFunction);
 			
 		//	updateChartFunction();
 		*/
 		dialogJQ.dialog({
+		    resizable: true,
+            draggable: true,
+            modal:true,
 			title: iso_code_to_name(countryCode),
 			minWidth: 850,
 			minHeight: 415,
+           maxWidth: 850,
 			width: 850,
 			height: 415,
 			close: function(event, ui) {
-				//$(document).unbind("flunet-update", updateChartFunction);
+				//$(document).unbind("update", updateChartFunction);
+                dialogJQ.find("#continent_checkbox").removeAttr("id");
 				dialogJQ = null;
 			}
 		});
+      
 	});
 	
 	
@@ -551,13 +679,13 @@ $(function(){
 		
 		subtypeChangeCounter++;
 		yellINeedToLoad();
-		$(document).on("flunet-update", function thisfunc() {
+		$(document).on("update", function thisfunc() {
 			yellImDoneLoading();
-			$(document).off("flunet-update", thisfunc);
+			$(document).off("update", thisfunc);
 			callbacks.forEach(function(item){ item(); });
 		});
 		setTimeout(function(){
-			$(document).trigger("flunet-update");
+			$(document).trigger("update");
 		}, 100);
 	}
 	var scheduleSubtypeChangeEvent = function(callback) {
